@@ -453,14 +453,14 @@
       var reader = new FileReader();
       reader.onload = function () {
         try {
-          var r = S.importJSON(String(reader.result));
+          var r = S.importJSON(U.decodeText(reader.result).text);
           toast('导入完成：新增 ' + r.added + ' 条，更新 ' + r.merged + ' 条', 'ok');
           render();
         } catch (e) {
           toast('导入失败：' + e.message, 'err');
         }
       };
-      reader.readAsText(f, 'utf-8');
+      reader.readAsArrayBuffer(f);
     });
     input.click();
   }
@@ -472,6 +472,10 @@
     body.appendChild(U.el('p', {
       style: 'font-size:13px;line-height:1.7;color:var(--text-2)',
       text: '选择 .csv 文件，或把表格内容直接粘贴到下面。首行需为表头，支持中英文列名（名称/金额为必需）。'
+    }));
+    body.appendChild(U.el('p', {
+      style: 'font-size:12px;line-height:1.6;color:var(--text-3);margin-top:4px',
+      text: '会按「下次扣费」继续往后计费，但不会补生成历史上的付款记录。'
     }));
 
     var ta = U.el('textarea', {
@@ -500,11 +504,14 @@
         if (!f) return;
         var reader = new FileReader();
         reader.onload = function () {
-          ta.value = String(reader.result || '');
-          var rows = U.parseCSV(ta.value);
-          hint.textContent = '已读取「' + f.name + '」，识别到 ' + Math.max(0, rows.length - 1) + ' 行数据。';
+          // 自动识别 UTF-8 / GBK：Excel 导出的中文 CSV 多为 GBK
+          var decoded = U.decodeText(reader.result);
+          ta.value = decoded.text;
+          var rows = U.parseCSV(decoded.text);
+          hint.textContent = '已读取「' + f.name + '」（' + decoded.encoding + '），识别到 ' +
+            Math.max(0, rows.length - 1) + ' 行数据。';
         };
-        reader.readAsText(f, 'utf-8');
+        reader.readAsArrayBuffer(f);
       });
       input.click();
     }

@@ -305,6 +305,45 @@
     return rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n') + '\r\n';
   }
 
+  /**
+   * 解码文件字节为文本，自动识别编码。
+   * 为什么需要：Excel 在中文 Windows 上「另存为 CSV」默认是 GBK(936)，
+   * 若一律按 UTF-8 读，中文表头会变成乱码 → 列名匹配失败。
+   * 判定顺序：BOM → 严格 UTF-8 试解 → 回退 GBK。
+   * @param {ArrayBuffer|Uint8Array} buf
+   * @returns {{text:string, encoding:string}}
+   */
+  function decodeText(buf) {
+    var bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+
+    // 1. BOM 优先
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return { text: new TextDecoder('utf-8').decode(bytes.subarray(3)), encoding: 'utf-8-bom' };
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      return { text: new TextDecoder('utf-16le').decode(bytes.subarray(2)), encoding: 'utf-16le' };
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      return { text: new TextDecoder('utf-16be').decode(bytes.subarray(2)), encoding: 'utf-16be' };
+    }
+
+    // 2. 严格 UTF-8：能无损解出就是 UTF-8
+    try {
+      var strict = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      return { text: strict, encoding: 'utf-8' };
+    } catch (e) {
+      /* 不是合法 UTF-8，往下走 */
+    }
+
+    // 3. 回退 GBK（中文 Windows 的 ANSI 代码页）
+    try {
+      return { text: new TextDecoder('gbk').decode(bytes), encoding: 'gbk' };
+    } catch (e2) {
+      // 个别环境不支持 gbk 标签
+      return { text: new TextDecoder('utf-8').decode(bytes), encoding: 'utf-8-lossy' };
+    }
+  }
+
   global.U = {
     DAY: DAY,
     startOfDay: startOfDay,
@@ -335,6 +374,7 @@
     download: download,
     parseCSV: parseCSV,
     csvCell: csvCell,
-    toCSV: toCSV
+    toCSV: toCSV,
+    decodeText: decodeText
   };
 })(window);

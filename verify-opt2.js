@@ -295,8 +295,88 @@ function log(ac, name, ok, detail) {
     await ctx.close();
   }
 
-  /* ============ AC19 手机端记录页不溢出 ============ */
+  /* ============ AC20 GBK 编码 CSV 可导入（回归：曾因 UTF-8 误读导致表头乱码） ============ */
   {
+    const { ctx, page } = await fresh();
+    const r = await page.evaluate(() => {
+      const U = window.U, S = window.Store;
+      S.reset();
+      // 构造 GBK 字节：中文表头在 GBK 下无法通过严格 UTF-8 解码
+      const gbkBytes = new Uint8Array([
+        0xC3, 0xFB, 0xB3, 0xC6, 0x2C, // 名称,
+        0xBD, 0xF0, 0xB6, 0xEE, 0x2C, // 金额,
+        0xB1, 0xD2, 0xD6, 0xD6, 0x0A, // 币种\n
+        0x47, 0x42, 0x4B, 0x32, 0x30, 0x2C, // GBK20,
+        0x31, 0x30, 0x2C,                   // 10,
+        0xD4, 0xAA, 0x0A                    // 元\n
+      ]);
+      const decoded = U.decodeText(gbkBytes);
+      let outcome;
+      try {
+        const res = S.importCSV(decoded.text);
+        outcome = {
+          encoding: decoded.encoding,
+          head: decoded.text.split('\n')[0],
+          added: res.added,
+          firstName: S.db.subs[0] ? S.db.subs[0].name : null,
+          firstPrice: S.db.subs[0] ? S.db.subs[0].price : null,
+          firstCur: S.db.subs[0] ? S.db.subs[0].currency : null,
+        };
+      } catch (e) {
+        outcome = { encoding: decoded.encoding, head: decoded.text.split('\n')[0], error: e.message };
+      }
+      // 同时验证纯 ASCII 的 UTF-8 不被误判成 GBK
+      const ascii = U.decodeText(new TextEncoder().encode('name,price\nA,1'));
+      return { gbk: outcome, asciiEncoding: ascii.encoding };
+    });
+    log('AC20', 'GBK 编码被正确识别', r.gbk.encoding === 'gbk', 'encoding=' + r.gbk.encoding);
+    log('AC20', 'GBK 表头解码出正确中文', r.gbk.head === '名称,金额,币种',
+      'head=' + JSON.stringify(r.gbk.head));
+    log('AC20', 'GBK CSV 导入成功且字段正确',
+      r.gbk.added === 1 && r.gbk.firstName === 'GBK20' && r.gbk.firstPrice === 10 && r.gbk.firstCur === 'CNY',
+      JSON.stringify(r.gbk));
+    log('AC20', 'ASCII/UTF-8 不被误判为 GBK', r.asciiEncoding === 'utf-8', 'encoding=' + r.asciiEncoding);
+    await ctx.close();
+  }
+
+  /* ============ AC21 CSV 不补历史付款（设计如此，需在 UI 说明） ============ */
+  {
+    const { ctx, page } = await fresh();
+    const r = await page.evaluate(() => {
+      const S = window.Store;
+      S.reset();
+      const before = S.db.payments.length;
+      S.importCSV('名称,金额,币种,周期,下次扣费\n无历史订阅,10,CNY,每月,2026-12-01');
+      return { before, after: S.db.payments.length, subs: S.db.subs.length };
+    });
+    log('AC21', 'CSV 导入只建订阅、不生成付款记录',
+      r.subs === 1 && r.after === r.before, JSON.stringify(r));
+
+    // UI 上必须有这条说明
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    if (await page.locator('#modalRoot').isVisible()) {
+      await page.click('#modalFoot .btn-ghost');
+      await page.waitForTimeout(250);
+    }
+    await page.evaluate(() => { location.hash = '#settings'; });
+    await page.waitForTimeout(500);
+    await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('.set-row button')];
+      const b = btns.find(x => x.textContent.trim() === '导入' && x.closest('.set-row').textContent.includes('CSV'));
+      if (b) b.click();
+    });
+    await page.waitForTimeout(500);
+    const noteText = await page.evaluate(() => {
+      const ps = [...document.querySelectorAll('#modalBody p')].map(p => p.textContent);
+      return ps.find(t => t.includes('不会补生成')) || null;
+    });
+    log('AC21', '导入弹窗说明「不补历史付款」', !!noteText, noteText);
+    await page.screenshot({ path: path.join(OUT, 'opt2-csv-modal.png') });
+    await ctx.close();
+  }
+
+  /* ============ AC19 手机端记录页不溢出 ============ */  {
     const { ctx, page } = await fresh({ width: 375, height: 812 });
     await page.evaluate(() => {
       const S = window.Store;

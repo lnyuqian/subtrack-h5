@@ -1,23 +1,24 @@
-# 依赖 / 构建产物（本项目零依赖，仅防御）
+﻿# 渚濊禆 / 鏋勫缓浜х墿锛堟湰椤圭洰闆朵緷璧栵紝浠呴槻寰★級
 node_modules/
 dist/
 
-# 测试产物
+# 娴嬭瘯浜х墿
 shots/
 *.log
 
-# 例外：保留关键证据截图（按需手动 git add -f）
-!shots/evidence-*.png
+# 渚嬪锛氫繚鐣欏叧閿瘉鎹埅鍥撅紙鎸夐渶鎵嬪姩 git add -f锛?!shots/evidence-*.png
 !shots/opt1-*.png
+!shots/opt2-*.png
+!shots/live-*.png
 
-# 编辑器 / 系统
+# 缂栬緫鍣?/ 绯荤粺
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# 本地临时
+# 鏈湴涓存椂
 *.tmp
 *.bak
 ~$*

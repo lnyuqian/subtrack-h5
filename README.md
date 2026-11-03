@@ -4,20 +4,21 @@
 
 ## 上手
 
-两种打开方式，功能差异只有一处：
+**在线直接用（推荐）**：https://lnyuqian.github.io/subtrack-h5/
+手机浏览器打开后可「添加到主屏幕」，离线可用。
+
+本地两种方式，功能差异只有 PWA 一处：
 
 | 方式 | 全部功能 | PWA 安装 / 离线 |
 |---|---|---|
 | 双击 `index.html`（`file://`） | ✅ | ❌ Service Worker 需要 http(s) |
-| 本地服务（推荐） | ✅ | ✅ |
+| 本地服务 | ✅ | ✅ |
 
 ```powershell
 cd 'D:\dsh-web\做项目\subtrack-h5'
 python -m http.server 8848 --bind 127.0.0.1
 # 打开 http://127.0.0.1:8848/index.html
 ```
-
-起服务后在浏览器里「安装应用 / 添加到主屏幕」，即可离线使用。
 
 首次打开是空态，去「设置 → 载入示例数据」可以灌 10 条常见订阅先看效果。
 
@@ -58,7 +59,7 @@ git clone https://github.com/lnyuqian/subtrack-h5.git
 - **涨价追踪**：记录价格变更历史，卡片上标出涨跌幅（hover 看具体区间）
 - **日历**：月视图按日显示扣费事件，可按周一/周日起始，本月预计支出
 - **统计**：未来 12 个月扣费预测、月费排行、付费周期构成、分类明细占比、合计与高峰月脚注
-- **数据进出**：JSON 备份、CSV 导入导出（中英双语表头 + 别名容错）、`.ics` 导出到系统日历
+- **数据进出**：JSON 备份、CSV 导入导出（中英双语表头 + 别名容错 + **自动识别 UTF-8/GBK**）、`.ics` 导出到系统日历
 - **主题**：浅色 / 深色 / 跟随系统
 
 ## 目录
@@ -114,10 +115,10 @@ $env:NODE_PATH = 'C:\Users\1、\AppData\Roaming\npm\node_modules'
 node verify.js        # 主回归：1440 / 768 / 375 + 深色，34 项
 node verify-tiny.js   # 矮视口专项：120–600px 高共 8 种尺寸，16 项
 node verify-opt1.js   # 第 1 批 AC1–AC10，23 项
-node verify-opt2.js   # 第 2 批 AC11–AC19，20 项
+node verify-opt2.js   # 第 2 批 AC11–AC21，26 项
 ```
 
-合计 **93 项断言全绿，零控制台错误**。报告见 `shots/report*.json`。
+合计 **99 项断言全绿，零控制台错误**。报告见 `shots/report*.json`。
 
 > **`test.cmd` 的环境限制**：`test.cmd` 内部也是调 `run-tests.js`，但在 **DSH 沙箱里经 `cmd.exe` 启动 Playwright 会挂起**（同一条命令用 `node run-tests.js` 直跑 15–79s 正常）。
 > 已实测排除脚本自身问题：cmd 里 `node --version` 0.1s、cmd 里嵌套 spawn 正常、Playwright 模块定位正确。
