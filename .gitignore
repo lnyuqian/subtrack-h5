@@ -1,0 +1,23 @@
+# 依赖 / 构建产物（本项目零依赖，仅防御）
+node_modules/
+dist/
+
+# 测试产物
+shots/
+*.log
+
+# 例外：保留关键证据截图（按需手动 git add -f）
+!shots/evidence-*.png
+!shots/opt1-*.png
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 本地临时
+*.tmp
+*.bak
+~$*
