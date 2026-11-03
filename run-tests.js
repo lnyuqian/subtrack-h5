@@ -43,7 +43,8 @@ const SUITES = {
   main: { file: 'verify.js', label: '主回归 1440/768/375' },
   tiny: { file: 'verify-tiny.js', label: '矮视口 8 尺寸' },
   opt1: { file: 'verify-opt1.js', label: '第1批 AC1–AC10' },
-  opt2: { file: 'verify-opt2.js', label: '第2批 AC11–AC19' },
+  opt2: { file: 'verify-opt2.js', label: '第2批 AC11–AC21' },
+  safari: { file: 'verify-webkit.js', label: 'Safari 内核（线上）' },
 };
 
 const arg = process.argv[2];
