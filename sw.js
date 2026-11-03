@@ -7,7 +7,7 @@
    ========================================================================== */
 'use strict';
 
-var VERSION = 'subtrack-v1.2.0';
+var VERSION = 'subtrack-v1.2.2';
 var CORE = VERSION + '-core';
 var RUNTIME = VERSION + '-runtime';
 

@@ -213,19 +213,102 @@
     return h;
   }
 
-  function autoColor(name) {
-    return 'hsl(' + hashHue(String(name || 'x')) + ' 62% 48%)';
+  /**
+   * 生成订阅图标上的字符。
+   * 规则：取名称的第一个「字符」——
+   *   中文/日文/韩文 → 第一个字（迅雷会员 → 迅）
+   *   英文/数字     → 第一个字母并大写（netflix → N，zoom pro → Z）
+   * 只有一个字时原样返回，不会越界。
+   */
+  function initial(name) {
+    var s = String(name == null ? '' : name).trim();
+    if (!s) return '?';
+    // 去掉开头的标点/空格/emoji 修饰，避免图标是空白或符号
+    var cleaned = s.replace(/^[\s\p{P}\p{S}]+/u, '');
+    if (!cleaned) cleaned = s;
+    var ch = Array.from(cleaned)[0]; // 按码点取，避免切坏 emoji/增补平面字符
+    if (!ch) return '?';
+    // 拉丁字母/数字统一大写；CJK 等保持原样
+    return /[a-z]/.test(ch) ? ch.toUpperCase() : ch;
   }
 
-  /** 由名称取首字（中文取 1 字，英文取首字母，最多 2 字符） */
-  function initial(name) {
-    var s = String(name || '?').trim();
-    if (!s) return '?';
-    var cjk = /[\u4e00-\u9fa5]/;
-    if (cjk.test(s[0])) return s.slice(0, 2);
-    var words = s.split(/[\s\-_.]+/).filter(Boolean);
-    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-    return s.slice(0, 2).toUpperCase();
+  /**
+   * 通用图标底色：按名称哈希稳定取色。
+   * 这 12 色都是用公式筛过的 —— 白色文字的对比度全部 ≥ 4.5:1（WCAG AA）。
+   * 算式：L = 0.2126·R' + 0.7152·G' + 0.0722·B'（sRGB 线性化后），对比度 = 1.05 / (L + 0.05)
+   */
+  var AVATAR_COLORS = [
+    '#3f5ae0', // 5.60
+    '#6a45e8', // 5.79
+    '#a83ac2', // 5.19
+    '#cc2f66', // 5.04
+    '#c93f37', // 4.94
+    '#8f6d10', // 4.81
+    '#24793d', // 5.42
+    '#0c8478', // 4.58
+    '#1878b5', // 4.78
+    '#4a6fa5', // 5.11
+    '#3d5c8a', // 6.78
+    '#64748b'  // 4.76
+  ];
+
+  function autoColor(name) {
+    var s = String(name || 'x');
+    var h = 0;
+    for (var i = 0; i < s.length; i++) {
+      h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    }
+    return AVATAR_COLORS[h % AVATAR_COLORS.length];
+  }
+
+  /** 相对亮度（sRGB → 线性） */
+  function relLuminance(rgb) {
+    var f = function (c) {
+      c = c / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * f(rgb[0]) + 0.7152 * f(rgb[1]) + 0.0722 * f(rgb[2]);
+  }
+
+  /** 白字在该底色上的对比度 */
+  function contrastOnWhite(hex) {
+    var m = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return 0;
+    var n = m[1];
+    var rgb = [parseInt(n.substr(0, 2), 16), parseInt(n.substr(2, 2), 16), parseInt(n.substr(4, 2), 16)];
+    return 1.05 / (relLuminance(rgb) + 0.05);
+  }
+
+  /** 把颜色压暗到白字对比度达标（保持色相） */
+  function darkenUntilReadable(hex) {
+    var m = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return hex;
+    var n = m[1];
+    var rgb = [parseInt(n.substr(0, 2), 16), parseInt(n.substr(2, 2), 16), parseInt(n.substr(4, 2), 16)];
+    var guard = 0;
+    while (contrastOnWhite(
+      '#' + rgb.map(function (c) { return Math.round(c).toString(16).padStart(2, '0'); }).join('')
+    ) < 4.5 && guard < 24) {
+      rgb = rgb.map(function (c) { return Math.max(0, c * 0.88); });
+      guard++;
+    }
+    return '#' + rgb.map(function (c) { return Math.round(c).toString(16).padStart(2, '0'); }).join('');
+  }
+
+  /**
+   * 图标底色：优先用条目自带的 color（预设品牌色或用户手选）—— 这就是「已有就忽略」。
+   * 但品牌色可能太亮（如 Spotify 绿 #1DB954 白字对比度仅 1.9），
+   * 这时压暗到可读，色相不变，仍然看得出是那个品牌。
+   */
+  function iconColor(name, color) {
+    var c = String(color || '').trim();
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c)) {
+      var full = c.length === 4
+        ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3]
+        : c;
+      return contrastOnWhite(full) >= 4.5 ? full : darkenUntilReadable(full);
+    }
+    return autoColor(name);
   }
 
   /* ---------------- 其它 ---------------- */
@@ -367,6 +450,9 @@
     $: $, $$: $$, el: el, icon: icon,
     escapeHTML: escapeHTML,
     autoColor: autoColor,
+    iconColor: iconColor,
+    contrastOnWhite: contrastOnWhite,
+    darkenUntilReadable: darkenUntilReadable,
     initial: initial,
     uid: uid,
     debounce: debounce,

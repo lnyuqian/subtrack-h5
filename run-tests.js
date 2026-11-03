@@ -44,6 +44,7 @@ const SUITES = {
   tiny: { file: 'verify-tiny.js', label: '矮视口 8 尺寸' },
   opt1: { file: 'verify-opt1.js', label: '第1批 AC1–AC10' },
   opt2: { file: 'verify-opt2.js', label: '第2批 AC11–AC21' },
+  icons: { file: 'verify-icons.js', label: '自定义图标 AC22–AC28' },
   safari: { file: 'verify-webkit.js', label: 'Safari 内核（线上）' },
 };
 

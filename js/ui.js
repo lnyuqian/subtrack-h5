@@ -10,14 +10,18 @@
 
   /* ---------------- 小部件 ---------------- */
 
+  /**
+   * 订阅图标：一个字 + 底色。
+   * 有自带 color（预设品牌色/用户手选）就用它，没有就用通用色 —— 「已有就忽略」。
+   */
   function avatar(name, color, cls) {
-    var div = h('div', { class: cls || 'avatar', style: 'background:' + (color || U.autoColor(name)) });
+    var div = h('div', { class: cls || 'avatar', style: 'background:' + U.iconColor(name, color) });
     div.textContent = U.initial(name);
     return div;
   }
 
   function avatarLg(name, color) {
-    var d = h('div', { class: 'sc-avatar', style: 'background:' + (color || U.autoColor(name)) });
+    var d = h('div', { class: 'sc-avatar', style: 'background:' + U.iconColor(name, color) });
     d.textContent = U.initial(name);
     return d;
   }
@@ -359,7 +363,7 @@
         if (s) {
           row.appendChild(h('div', {
             class: 'pt-avatar',
-            style: 'background:' + (s.color || U.autoColor(s.name))
+            style: 'background:' + U.iconColor(s.name, s.color)
           }, [document.createTextNode(U.initial(s.name))]));
         } else {
           row.appendChild(h('div', { class: 'pt-avatar', style: 'background:#94a3b8' }, ['?']));
@@ -1154,7 +1158,7 @@
     var colorField = h('div', { class: 'field' });
     colorField.appendChild(h('label', { text: '标识色' }));
     var colorInput = h('input', {
-      class: 'input', type: 'color', name: 'color', value: d.color || U.autoColor(d.name || 'sub'),
+      class: 'input', type: 'color', name: 'color', value: U.iconColor(d.name || 'sub', d.color),
       style: 'padding:3px;height:38px;cursor:pointer'
     });
     colorField.appendChild(colorInput);
@@ -1185,6 +1189,7 @@
         'font-size:12.5px;color:var(--text-2);display:flex;align-items:center;gap:8px;flex-wrap:wrap'
     });
     var pvAvatar = h('div', {
+      class: 'form-preview-avatar',
       style: 'width:28px;height:28px;border-radius:8px;display:grid;place-items:center;' +
         'color:#fff;font-size:12px;font-weight:700;flex:none'
     });
@@ -1256,7 +1261,7 @@
     /* -- 联动 -- */
     function previewAvatar() {
       var nm = nameInput.value || '?';
-      pvAvatar.style.background = colorInput.value || U.autoColor(nm);
+      pvAvatar.style.background = U.iconColor(nm, colorInput.value);
       pvAvatar.textContent = U.initial(nm);
     }
 

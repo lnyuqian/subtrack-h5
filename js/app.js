@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    app.js · 控制器（路由 / 事件 / 主题 / 提醒 / 导入导出）
    ========================================================================== */
 (function (global) {
@@ -385,7 +385,7 @@
       list.appendChild(U.el('div', { class: 'onboard-row', dataset: { id: s.id } }, [
         U.el('div', {
           class: 'avatar',
-          style: 'background:' + (s.color || U.autoColor(s.name))
+          style: 'background:' + U.iconColor(s.name, s.color)
         }, [document.createTextNode(U.initial(s.name))]),
         U.el('div', { class: 'onboard-info' }, [
           U.el('b', { text: s.name }),
