@@ -10,6 +10,8 @@ shots/
 !shots/opt1-*.png
 !shots/opt2-*.png
 !shots/live-*.png
+!shots/fix-icons-*.png
+!shots/fix-custom-*.png
 
 # 缂栬緫鍣?/ 绯荤粺
 .vscode/
