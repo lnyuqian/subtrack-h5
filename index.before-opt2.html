@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>订阅管家 · 跨平台订阅付费管理</title>
+<meta name="description" content="跨平台订阅付费管理与到期提醒，支持多币种、分类统计、日历视图与 iCal 导出。" />
+<meta name="theme-color" content="#f4f6fa" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0b0f16" media="(prefers-color-scheme: dark)" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%234f6ef7'/%3E%3Cpath d='M20 26h18a8 8 0 0 1 0 16H26' stroke='white' stroke-width='5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='20' cy='26' r='4' fill='white'/%3E%3C/svg%3E" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="订阅管家" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="application-name" content="订阅管家" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ============ 桌面侧边栏 ============ -->
+  <aside class="sidebar" aria-label="主导航">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="22" height="22"><path d="M18 24h20a10 10 0 0 1 0 20H26" stroke="currentColor" stroke-width="6" fill="none" stroke-linecap="round"/><circle cx="18" cy="24" r="5" fill="currentColor"/></svg>
+      </div>
+      <div class="brand-text">
+        <strong>订阅管家</strong>
+        <span>Subscription Tracker</span>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <a class="nav-item" data-view="dashboard" href="#dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm9 0h7v-9h-7v9Zm0-16v5h7V4h-7Z"/></svg>
+        <span>概览</span>
+      </a>
+      <a class="nav-item" data-view="subs" href="#subs">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Zm3 3h9V6H7v3Z"/></svg>
+        <span>订阅</span>
+        <em class="nav-badge" id="navCountSubs">0</em>
+      </a>
+      <a class="nav-item" data-view="calendar" href="#calendar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2V3h-2v2H9V3H7ZM5 11h14v8H5v-8Z"/></svg>
+        <span>日历</span>
+      </a>
+      <a class="nav-item" data-view="stats" href="#stats">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V9h3v12H5Zm5.5 0V3h3v18h-3ZM16 21v-7h3v7h-3Z"/></svg>
+        <span>统计</span>
+      </a>
+      <a class="nav-item" data-view="settings" href="#settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.4 4c0 .4 0 .8-.1 1.2l2 1.6-1.9 3.3-2.4-.9c-.6.5-1.3.9-2 1.2l-.4 2.6h-3.8l-.4-2.6c-.7-.3-1.4-.7-2-1.2l-2.4.9-1.9-3.3 2-1.6c-.1-.4-.1-.8-.1-1.2s0-.8.1-1.2l-2-1.6 1.9-3.3 2.4.9c.6-.5 1.3-.9 2-1.2l.4-2.6h3.8l.4 2.6c.7.3 1.4.7 2 1.2l2.4-.9 1.9 3.3-2 1.6c.1.4.1.8.1 1.2Z"/></svg>
+        <span>设置</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="mini-stat">
+        <span>月度折算</span>
+        <strong id="sideMonthly">—</strong>
+      </div>
+      <div class="mini-stat">
+        <span>年度折算</span>
+        <strong id="sideYearly">—</strong>
+      </div>
+      <button class="btn btn-ghost btn-block" id="sidebarTheme" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-.5-.4-.9-.9-.8A7.1 7.1 0 0 1 12.8 3.9c.1-.5-.3-.9-.8-.9Z"/></svg>
+        <span id="sidebarThemeLabel">深色模式</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============ 主区域 ============ -->
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="topbar-title">
+          <button class="icon-btn only-mobile" id="openNav" type="button" aria-label="菜单">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z"/></svg>
+          </button>
+          <div>
+            <h1 id="viewTitle">概览</h1>
+            <p id="viewSubtitle">今天需要留意的订阅</p>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="icon-btn" id="btnBell" type="button" aria-label="提醒中心">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 0 0-5.5-6.84V3a1.5 1.5 0 0 0-3 0v1.16A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+            <em class="dot-badge" id="bellBadge" hidden>0</em>
+          </button>
+          <button class="btn btn-primary" id="btnAdd" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>
+            <span>新增订阅</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="views" id="views">
+      <section class="view" id="view-dashboard" data-view="dashboard" aria-labelledby="viewTitle">
+        <div id="alertBanner" class="alert-banner" hidden></div>
+        <div id="dashboardBody" class="view-body"></div>
+      </section>
+
+      <section class="view" id="view-subs" data-view="subs" hidden>
+        <div class="view-toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4a6 6 0 1 0 3.7 10.7l4.8 4.8 1.4-1.4-4.8-4.8A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/></svg>
+            <input id="searchInput" type="search" placeholder="搜索订阅名称…" autocomplete="off" />
+          </div>
+          <div class="toolbar-right">
+            <select id="sortSelect" class="select" aria-label="排序">
+              <option value="next">按下次扣费</option>
+              <option value="monthlyDesc">按月费从高到低</option>
+              <option value="monthlyAsc">按月费从低到高</option>
+              <option value="name">按名称</option>
+              <option value="added">按添加时间</option>
+            </select>
+          </div>
+        </div>
+        <div class="chips" id="catChips" role="tablist" aria-label="分类筛选"></div>
+        <div id="subsBody" class="view-body"></div>
+      </section>
+
+      <section class="view" id="view-calendar" data-view="calendar" hidden>
+        <div id="calendarBody" class="view-body"></div>
+      </section>
+
+      <section class="view" id="view-stats" data-view="stats" hidden>
+        <div id="statsBody" class="view-body"></div>
+      </section>
+
+      <section class="view" id="view-settings" data-view="settings" hidden>
+        <div id="settingsBody" class="view-body"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ============ 手机底部导航 ============ -->
+  <nav class="tabbar" aria-label="主导航">
+    <a class="tab-item" data-view="dashboard" href="#dashboard">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm9 0h7v-9h-7v9Zm0-16v5h7V4h-7Z"/></svg><span>概览</span>
+    </a>
+    <a class="tab-item" data-view="subs" href="#subs">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Zm3 3h9V6H7v3Z"/></svg><span>订阅</span>
+    </a>
+    <a class="tab-item tab-add" href="#" id="tabAdd" role="button">
+      <span class="tab-add-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg></span>
+    </a>
+    <a class="tab-item" data-view="calendar" href="#calendar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2V3h-2v2H9V3H7ZM5 11h14v8H5v-8Z"/></svg><span>日历</span>
+    </a>
+    <a class="tab-item" data-view="stats" href="#stats">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V9h3v12H5Zm5.5 0V3h3v18h-3ZM16 21v-7h3v7h-3Z"/></svg><span>统计</span>
+    </a>
+  </nav>
+
+</div>
+
+<div class="modal-root" id="modalRoot" hidden>
+  <div class="modal-backdrop" data-close="1"></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h2 id="modalTitle">新增订阅</h2>
+      <button class="icon-btn" type="button" data-close="1" aria-label="关闭">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="drawer-root" id="drawerRoot" hidden>
+  <div class="modal-backdrop" data-close="1"></div>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <div class="modal-head">
+      <h2 id="drawerTitle">提醒中心</h2>
+      <button class="icon-btn" type="button" data-close="1" aria-label="关闭">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"/></svg>
+      </button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+</div>
+
+<div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+
+<script src="js/platforms.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/store.js"></script>
+<script src="js/ics.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+<script>
+/* PWA：Service Worker 只在 http(s) 下注册；file:// 双击打开时静默跳过，
+   其余功能不受影响（这是「A 方案：双击可用 + 服务下自动升级为 PWA」的降级路径） */
+(function () {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+    window.__SW_SKIPPED__ = 'insecure-context';
+    return;
+  }
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      window.__SW_REGISTERED__ = true;
+      reg.addEventListener('updatefound', function () {
+        var sw = reg.installing;
+        if (!sw) return;
+        sw.addEventListener('statechange', function () {
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+            // 新版本就绪，提示用户刷新（不强制打断）
+            if (window.__toast) window.__toast('有新版本，刷新后生效', 'ok');
+          }
+        });
+      });
+    }).catch(function (e) {
+      window.__SW_REGISTERED__ = false;
+      window.__SW_ERROR__ = String(e && e.message || e);
+    });
+  });
+})();
+</script>
+</body>
+</html>
