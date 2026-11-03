@@ -23,8 +23,18 @@ python -m http.server 8848 --bind 127.0.0.1
 
 ## 版本
 
+- **v1.2.0**（2026-11-03）第 2 批优化：付款记录页（时间轴 + 年度支出）、涨价追踪（`priceHistory` + 涨跌幅标签）、CSV 导入导出（中英双语表头 + 别名容错）
 - **v1.1.0**（2026-11-03）第一批优化：币种符号去重、付款历史、图表脚注、汇率可编辑、导入合并键、PWA + 离线、今日扣费启动提醒、存储写满兜底
 - v1.0.0 初版：订阅管理 / 多币种 / 到期提醒 / 日历 / 统计 / iCal 导出
+
+## 仓库
+
+https://github.com/lnyuqian/subtrack-h5
+
+```powershell
+git clone https://github.com/lnyuqian/subtrack-h5.git
+```
+
 
 ## 参考仓库（按 GitHub star 排序，均有真实 Web UI）
 
@@ -43,10 +53,12 @@ python -m http.server 8848 --bind 127.0.0.1
 - **订阅管理**：增删改、暂停/恢复/取消、自动续费开关、支付方式、管理链接、备注、标识色
 - **周期与金额**：每周 / 每月 / 每季 / 每年 / 自定义 N 个月；任选币种（11 种），统一折算到基准币种
 - **到期提醒**：下次扣费倒计时、提醒窗口可调（1–30 天）、提醒中心抽屉、浏览器通知（每日最多一条）
+- **启动提醒**：当天有扣费时弹窗列出明细，每天最多一次
+- **付款记录**：实付时间轴按年月分组、累计/年度实付统计、按年筛选
+- **涨价追踪**：记录价格变更历史，卡片上标出涨跌幅（hover 看具体区间）
 - **日历**：月视图按日显示扣费事件，可按周一/周日起始，本月预计支出
-- **统计**：未来 12 个月扣费预测柱状图、月费排行、付费周期构成、分类明细占比
-- **系统日历**：导出 `.ics`（带 `RRULE` 重复 + 提前 N 天 `VALARM`），导入 iOS / Google / Outlook 后由系统负责推送
-- **数据**：JSON 导出/导入备份、清空、示例数据
+- **统计**：未来 12 个月扣费预测、月费排行、付费周期构成、分类明细占比、合计与高峰月脚注
+- **数据进出**：JSON 备份、CSV 导入导出（中英双语表头 + 别名容错）、`.ics` 导出到系统日历
 - **主题**：浅色 / 深色 / 跟随系统
 
 ## 目录
@@ -85,18 +97,36 @@ subtrack-h5/
 
 ## 实测
 
+一条命令跑全部（D8：本地即 CI）：
+
+```powershell
+node run-tests.js          # 全部四套，约 79s
+node run-tests.js main     # 只跑主回归
+node run-tests.js tiny     # 只跑矮视口
+node run-tests.js opt1     # 只跑第 1 批 AC
+node run-tests.js opt2     # 只跑第 2 批 AC
+```
+
+等价的逐套命令（需要先设 `NODE_PATH`）：
+
 ```powershell
 $env:NODE_PATH = 'C:\Users\1、\AppData\Roaming\npm\node_modules'
 node verify.js        # 主回归：1440 / 768 / 375 + 深色，34 项
 node verify-tiny.js   # 矮视口专项：120–600px 高共 8 种尺寸，16 项
-node verify-opt1.js   # 第一批优化 AC1–AC10，23 项
+node verify-opt1.js   # 第 1 批 AC1–AC10，23 项
+node verify-opt2.js   # 第 2 批 AC11–AC19，20 项
 ```
 
-合计 **73 项断言全绿，零控制台错误**。报告见 `shots/report.json`、`shots/report-tiny.json`、`shots/report-opt1.json`。
+合计 **93 项断言全绿，零控制台错误**。报告见 `shots/report*.json`。
+
+> **`test.cmd` 的环境限制**：`test.cmd` 内部也是调 `run-tests.js`，但在 **DSH 沙箱里经 `cmd.exe` 启动 Playwright 会挂起**（同一条命令用 `node run-tests.js` 直跑 15–79s 正常）。
+> 已实测排除脚本自身问题：cmd 里 `node --version` 0.1s、cmd 里嵌套 spawn 正常、Playwright 模块定位正确。
+> 结论：这是沙箱对 `cmd.exe` → Chromium 子进程链的限制，**在普通终端里 `test.cmd` 可正常使用**；在此环境请用 `node run-tests.js`。
 
 基线对照（勿删）：
 - `css/style.before-fix.css` —— 矮视口修复前的旧样式
 - `*.before-opt1.*` —— 第一批优化前的全部源文件
+- `*.before-opt2.*` —— 第二批优化前的全部源文件
 
 ## PWA
 
