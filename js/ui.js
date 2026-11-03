@@ -57,6 +57,21 @@
       h('span', { class: 'cycle', text: S.moneyLabel(S.monthlyBase(sub, settings), settings) + '/月' })
     ]);
 
+    // 涨价 / 降价标签（依据 priceHistory 最近两次）
+    var pc = S.priceChange(sub);
+    if (pc) {
+      var pct = Math.abs(Math.round(pc.pct * 10) / 10);
+      priceRow.appendChild(h('span', {
+        class: 'price-rise ' + (pc.isRise ? 'up' : 'down'),
+        title: '上次 ' + U.currencySymbol(pc.currency) + U.moneySmart(pc.from) +
+               ' → 现在 ' + U.currencySymbol(pc.currency) + U.moneySmart(pc.to) +
+               '（' + pc.since + ' 起）',
+        dataset: { pct: String(pct), rise: String(pc.isRise) }
+      }, [
+        h('span', { text: (pc.isRise ? '↑ ' : '↓ ') + pct + '%' })
+      ]));
+    }
+
     var countIcon = icon('clock');
     var count = h('span', { class: 'sc-count ' + (sub.status === 'active' ? dueCls : '') }, [countIcon]);
     count.appendChild(document.createTextNode(sub.status === 'active' ? U.relDay(S.nextDueDate(sub)) : '—'));
@@ -255,6 +270,117 @@
         ]));
       }
     }
+  }
+
+  /* ---------------- 付款记录 ---------------- */
+  function renderRecords(root, ctx, state) {
+    var settings = S.db.settings;
+    var sym = U.currencySymbol(settings.currency);
+    var year = state.recordYear || 'all';
+    root.innerHTML = '';
+
+    var years = S.paymentsByYear(settings);
+    var list = S.allPayments({ year: year === 'all' ? null : year });
+
+    // 年度汇总卡
+    var sumCard = h('div', { class: 'card card-pad' });
+    var grand = years.reduce(function (a, y) { return a + y.total; }, 0);
+    var stats = h('div', { class: 'kpi-grid' }, []);
+    stats.appendChild(h('div', { class: 'kpi' }, [
+      h('div', { class: 'kpi-label' }, [icon('wallet'), h('span', { text: '累计实付' })]),
+      h('div', { class: 'kpi-value', html: '<small>' + sym + '</small>' + U.moneySmart(grand) }),
+      h('div', { class: 'kpi-foot', text: '共 ' + S.db.payments.length + ' 笔记录' })
+    ]));
+    var curYear = years.find(function (y) { return y.year === String(U.today().getFullYear()); });
+    stats.appendChild(h('div', { class: 'kpi' }, [
+      h('div', { class: 'kpi-label' }, [icon('calendar'), h('span', { text: '今年实付' })]),
+      h('div', { class: 'kpi-value', html: '<small>' + sym + '</small>' + U.moneySmart(curYear ? curYear.total : 0) }),
+      h('div', { class: 'kpi-foot', text: (curYear ? curYear.count : 0) + ' 笔' })
+    ]));
+    sumCard.appendChild(stats);
+    root.appendChild(sumCard);
+
+    // 年份筛选
+    if (years.length > 1) {
+      var chips = h('div', { class: 'chips', role: 'tablist', 'aria-label': '年份筛选' });
+      chips.appendChild(h('button', {
+        class: 'chip', type: 'button', role: 'tab',
+        'aria-selected': String(year === 'all'),
+        onclick: function () { ctx.setRecordYear('all'); }
+      }, [document.createTextNode('全部')]));
+      years.forEach(function (y) {
+        chips.appendChild(h('button', {
+          class: 'chip', type: 'button', role: 'tab',
+          'aria-selected': String(year === y.year),
+          onclick: function () { ctx.setRecordYear(y.year); }
+        }, [document.createTextNode(y.year + ' 年'), h('em', { text: String(y.count) })]));
+      });
+      root.appendChild(chips);
+    }
+
+    if (!list.length) {
+      root.appendChild(h('div', { class: 'card' }, [
+        emptyBox('还没有付款记录',
+          '在订阅详情里点「标记本期已付」，或在设置里载入示例数据后自动生成。',
+          null, null, 'wallet')
+      ]));
+      return;
+    }
+
+    // 时间轴：按年月分组
+    var card = h('div', { class: 'card' });
+    card.appendChild(h('div', { class: 'card-head' }, [
+      h('h3', { text: '付款时间轴' }),
+      h('span', { class: 'spacer' }),
+      h('span', { class: 'sub', text: list.length + ' 笔' })
+    ]));
+
+    var groups = {};
+    list.forEach(function (x) {
+      var k = String(x.pay.date || '').slice(0, 7);
+      (groups[k] = groups[k] || []).push(x);
+    });
+
+    var timeline = h('div', { class: 'pay-timeline' });
+    Object.keys(groups).sort().reverse().forEach(function (k) {
+      var g = groups[k];
+      var monthTotal = g.reduce(function (a, x) {
+        return a + U.convert(U.toNum(x.pay.amount), x.pay.currency || settings.currency, settings.currency, settings.rates);
+      }, 0);
+
+      timeline.appendChild(h('div', { class: 'pt-month' }, [
+        h('span', { text: k.replace('-', ' 年 ') + ' 月' }),
+        h('b', { text: sym + U.moneySmart(monthTotal) })
+      ]));
+
+      g.forEach(function (x) {
+        var s = x.sub;
+        var row = h('div', { class: 'pay-timeline-row', dataset: s ? { id: s.id } : {} }, []);
+        if (s) {
+          row.appendChild(h('div', {
+            class: 'pt-avatar',
+            style: 'background:' + (s.color || U.autoColor(s.name))
+          }, [document.createTextNode(U.initial(s.name))]));
+        } else {
+          row.appendChild(h('div', { class: 'pt-avatar', style: 'background:#94a3b8' }, ['?']));
+        }
+        row.appendChild(h('div', { class: 'pt-info' }, [
+          h('b', { text: s ? s.name : '（已删除的订阅）' }),
+          h('span', {}, [
+            document.createTextNode(String(x.pay.date || '')),
+            h('i', { class: 'pt-tag' + (x.pay.auto ? ' auto' : ''), text: x.pay.auto ? '自动' : '手动' })
+          ])
+        ]));
+        row.appendChild(h('span', {
+          class: 'pt-amt',
+          text: U.currencySymbol(x.pay.currency || settings.currency) + U.moneySmart(U.toNum(x.pay.amount))
+        }));
+        timeline.appendChild(row);
+      });
+    });
+
+    card.appendChild(timeline);
+    root.appendChild(card);
   }
 
   /* ---------------- 订阅列表 ---------------- */
@@ -801,6 +927,23 @@
     ]));
 
     dbody.appendChild(h('div', { class: 'set-row' }, [
+      h('div', { class: 'set-info' }, [
+        h('b', { text: 'CSV 导入 / 导出' }),
+        h('span', { text: '导出为表格，或从表格批量导入（支持中英文表头）' })
+      ]),
+      h('div', { style: 'display:flex;gap:8px' }, [
+        h('button', {
+          class: 'btn btn-ghost btn-sm', type: 'button',
+          onclick: function () { ctx.exportCSV(); }
+        }, [icon('download'), h('span', { text: '导出' })]),
+        h('button', {
+          class: 'btn btn-ghost btn-sm', type: 'button',
+          onclick: function () { ctx.importCSV(); }
+        }, [icon('upload'), h('span', { text: '导入' })])
+      ])
+    ]));
+
+    dbody.appendChild(h('div', { class: 'set-row' }, [
       h('div', { class: 'set-info' }, [h('b', { text: '载入示例数据' }), h('span', { text: '填充 10 条常见订阅，方便先看效果' })]),
       h('button', {
         class: 'btn btn-ghost btn-sm', type: 'button',
@@ -1204,6 +1347,7 @@
     renderChips: renderChips,
     renderCalendar: renderCalendar,
     renderStats: renderStats,
+    renderRecords: renderRecords,
     renderSettings: renderSettings,
     renderReminders: renderReminders,
     buildForm: buildForm

@@ -701,6 +701,60 @@ input, select, textarea, button { font-family: inherit; }
 }
 .modal-head, .modal-foot { flex: 0 0 auto; }
 
+/* 涨价 / 降价标签（卡片价格行内） */
+.price-rise {
+  display: inline-flex; align-items: center;
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: var(--r-full);
+  font-size: 10.5px; font-weight: 700;
+  font-family: var(--font-num);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.price-rise.up { background: var(--danger-soft); color: var(--danger); }
+.price-rise.down { background: var(--ok-soft); color: var(--ok); }
+
+/* 付款时间轴 */
+.pay-timeline { display: flex; flex-direction: column; padding: 4px 0 8px; }
+.pt-month {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 12px clamp(14px, 2vw, 20px) 8px;
+  font-size: 12px; font-weight: 700; color: var(--text-2);
+  position: sticky; top: calc(var(--topbar-h));
+  background: color-mix(in srgb, var(--bg-elev) 94%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1;
+}
+.pt-month b { font-family: var(--font-num); color: var(--text); font-weight: 650; }
+.pay-timeline-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px clamp(14px, 2vw, 20px);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.13s;
+}
+.pay-timeline-row:last-child { border-bottom: 0; }
+.pay-timeline-row:hover { background: var(--bg-hover); }
+.pt-avatar {
+  width: 34px; height: 34px; flex: none;
+  border-radius: 10px;
+  display: grid; place-items: center;
+  font-size: 12.5px; font-weight: 700; color: #fff;
+}
+.pt-info { min-width: 0; flex: 1; }
+.pt-info b { display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-info span { font-size: 11.5px; color: var(--text-3); display: flex; align-items: center; gap: 6px; font-family: var(--font-num); }
+.pt-tag {
+  font-style: normal; font-size: 10px; font-weight: 600;
+  padding: 0 5px; border-radius: var(--r-full);
+  background: var(--bg-soft); color: var(--text-3);
+  font-family: var(--font-sans);
+}
+.pt-tag.auto { background: var(--info-soft); color: var(--info); }
+.pt-amt { font-family: var(--font-num); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; flex: none; }
+
 /* 付款历史（编辑弹窗内） */
 .pay-history {
   margin-top: 14px;

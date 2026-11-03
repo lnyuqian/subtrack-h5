@@ -13,12 +13,14 @@
     q: '',
     sort: 'next',
     calCursor: U.today(),
+    recordYear: 'all',
     editingId: null
   };
 
   var VIEW_META = {
     dashboard: { title: '概览', sub: '今天需要留意的订阅' },
     subs: { title: '订阅', sub: '管理全部订阅与周期' },
+    records: { title: '记录', sub: '实付时间轴与年度支出' },
     calendar: { title: '日历', sub: '按日期查看扣费安排' },
     stats: { title: '统计', sub: '支出构成与未来预测' },
     settings: { title: '设置', sub: '偏好、提醒与数据' }
@@ -117,6 +119,9 @@
       case 'calendar':
         UI.renderCalendar($('#calendarBody'), ctx, state);
         break;
+      case 'records':
+        UI.renderRecords($('#recordsBody'), ctx, state);
+        break;
       case 'stats':
         UI.renderStats($('#statsBody'), ctx);
         break;
@@ -135,6 +140,9 @@
 
     var c = $('#navCountSubs');
     if (c) c.textContent = String(n);
+
+    var cp = $('#navCountPays');
+    if (cp) cp.textContent = String(S.db.payments.length);
 
     var sideM = $('#sideMonthly');
     var sideY = $('#sideYearly');
@@ -457,6 +465,86 @@
     input.click();
   }
 
+  /* ---------------- CSV 导入 / 导出 ---------------- */
+  function importCSV() {
+    // 两条路：选文件，或直接粘贴（手机上没有 CSV 文件时贴文本最方便）
+    var body = U.el('div', {});
+    body.appendChild(U.el('p', {
+      style: 'font-size:13px;line-height:1.7;color:var(--text-2)',
+      text: '选择 .csv 文件，或把表格内容直接粘贴到下面。首行需为表头，支持中英文列名（名称/金额为必需）。'
+    }));
+
+    var ta = U.el('textarea', {
+      class: 'textarea', rows: '6',
+      placeholder: '名称,金额,币种,周期,下次扣费\nNetflix,15.49,USD,每月,2026-12-01',
+      style: 'width:100%;margin-top:10px;font-family:var(--font-num);font-size:12.5px',
+      'aria-label': 'CSV 内容'
+    });
+    body.appendChild(ta);
+
+    var fileLabel = U.el('button', {
+      class: 'btn btn-ghost btn-sm', type: 'button',
+      onclick: function () { pickFile(); }
+    }, [U.icon('upload'), U.el('span', { text: '选择 .csv 文件' })]);
+    body.appendChild(U.el('div', { style: 'margin-top:10px;display:flex;gap:8px' }, [fileLabel]));
+
+    var hint = U.el('p', { class: 'pay-empty', style: 'margin-top:8px' });
+    body.appendChild(hint);
+
+    function pickFile() {
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.csv,text/csv';
+      input.addEventListener('change', function () {
+        var f = input.files && input.files[0];
+        if (!f) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          ta.value = String(reader.result || '');
+          var rows = U.parseCSV(ta.value);
+          hint.textContent = '已读取「' + f.name + '」，识别到 ' + Math.max(0, rows.length - 1) + ' 行数据。';
+        };
+        reader.readAsText(f, 'utf-8');
+      });
+      input.click();
+    }
+
+    var cancel = U.el('button', { class: 'btn btn-ghost', type: 'button', onclick: closeModal },
+      [U.el('span', { text: '取消' })]);
+    var ok = U.el('button', { class: 'btn btn-primary', type: 'button' },
+      [U.icon('check'), U.el('span', { text: '导入' })]);
+
+    ok.addEventListener('click', function () {
+      var text = ta.value.trim();
+      if (!text) { toast('请先选择文件或粘贴内容', 'err'); return; }
+      try {
+        var r = S.importCSV(text);
+        closeModal();
+        if (r.added === 0) {
+          toast('没有导入任何订阅：' + (r.errors[0] || '所有行都被跳过'), 'err');
+        } else {
+          var msg = '已导入 ' + r.added + ' 条';
+          if (r.skipped) msg += '，跳过 ' + r.skipped + ' 条';
+          toast(msg, 'ok');
+          if (r.errors.length) {
+            console.warn('[CSV] 部分行未导入:', r.errors);
+          }
+        }
+        render();
+      } catch (e) {
+        toast('导入失败：' + e.message, 'err');
+      }
+    });
+
+    openModal('导入 CSV', body, [cancel, ok]);
+  }
+
+  function exportCSV() {
+    var name = '订阅清单-' + U.fmtDate(U.today()) + '.csv';
+    U.download(name, S.exportCSV(), 'text/csv;charset=utf-8');
+    toast('已导出 ' + S.db.subs.length + ' 条订阅为 CSV', 'ok');
+  }
+
   function resetAll() {
     var body = U.el('div', {}, [
       U.el('p', { style: 'font-size:14px;line-height:1.7;color:var(--text-2)' }, [
@@ -501,6 +589,7 @@
     closeModal: closeModal,
     toast: toast,
     setCategory: function (id) { state.category = id; render(); },
+    setRecordYear: function (y) { state.recordYear = y; render(); },
     shiftMonth: function (delta) {
       if (delta === 0) state.calCursor = U.today();
       else state.calCursor = U.addMonths(state.calCursor, delta);
@@ -524,6 +613,8 @@
     exportICS: exportICS,
     exportJSON: exportJSON,
     importJSON: importJSON,
+    importCSV: importCSV,
+    exportCSV: exportCSV,
     resetAll: resetAll,
     seedDemo: seedDemo,
     testNotify: testNotify

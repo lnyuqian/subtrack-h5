@@ -76,6 +76,23 @@
     o.remindDays = o.remindDays == null ? null : U.toNum(o.remindDays);
     o.createdAt = o.createdAt || new Date().toISOString();
     o.updatedAt = o.updatedAt || o.createdAt;
+    // 价格历史：老数据没有这个字段，按「当前价格 = 唯一历史」补齐（扩展-收缩，D7）
+    if (!Array.isArray(o.priceHistory)) {
+      o.priceHistory = [{ price: o.price, currency: o.currency, since: o.createdAt.slice(0, 10) }];
+    }
+    o.priceHistory = o.priceHistory
+      .filter(function (h) { return h && isFinite(U.toNum(h.price)); })
+      .map(function (h) {
+        return {
+          price: U.toNum(h.price),
+          currency: P.CURRENCY_MAP[h.currency] ? h.currency : o.currency,
+          since: U.fmtDate(h.since) || o.createdAt.slice(0, 10)
+        };
+      })
+      .sort(function (a, b) { return a.since.localeCompare(b.since); });
+    if (!o.priceHistory.length) {
+      o.priceHistory = [{ price: o.price, currency: o.currency, since: o.createdAt.slice(0, 10) }];
+    }
     return o;
   }
 
@@ -235,12 +252,59 @@
 
   function get(id) { return db.subs.find(function (s) { return s.id === id; }) || null; }
 
+  /**
+   * 价格变了就追加一条历史（不覆盖旧的）。
+   * 只有「价格或币种真的变了」才记录，避免每次编辑都堆一条重复记录。
+   */
+  function recordPriceChange(prev, next) {
+    if (!prev || !next) return;
+    var samePrice = Math.abs(U.toNum(prev.price) - U.toNum(next.price)) < 0.0001;
+    var sameCur = prev.currency === next.currency;
+    if (samePrice && sameCur) return;
+    // 同一天内多次改动，合并成当日最后一条，避免刷出多条
+    var today = U.fmtDate(U.today());
+    var hist = next.priceHistory || [];
+    var last = hist[hist.length - 1];
+    if (last && last.since === today) {
+      last.price = next.price;
+      last.currency = next.currency;
+    } else {
+      hist.push({ price: next.price, currency: next.currency, since: today });
+    }
+    next.priceHistory = hist;
+  }
+
+  /**
+   * 涨价信息：拿最近一次与上一次比。
+   * @returns {null|{from,to,currency,pct,abs,since,isRise}}
+   */
+  function priceChange(sub) {
+    var hist = sub && sub.priceHistory;
+    if (!Array.isArray(hist) || hist.length < 2) return null;
+    var to = hist[hist.length - 1];
+    var from = hist[hist.length - 2];
+    if (!from || !(from.price > 0)) return null;
+    var abs = to.price - from.price;
+    if (Math.abs(abs) < 0.0001) return null;
+    return {
+      from: from.price,
+      to: to.price,
+      currency: to.currency,
+      abs: abs,
+      pct: abs / from.price * 100,
+      since: to.since,
+      isRise: abs > 0
+    };
+  }
+
   function upsert(data) {
     var now = new Date().toISOString();
     if (data.id) {
       var idx = db.subs.findIndex(function (s) { return s.id === data.id; });
       if (idx < 0) throw new Error('订阅不存在');
-      var merged = normalizeSub(Object.assign({}, db.subs[idx], data, { updatedAt: now }));
+      var prev = db.subs[idx];
+      var merged = normalizeSub(Object.assign({}, prev, data, { updatedAt: now }));
+      recordPriceChange(prev, merged);
       db.subs[idx] = merged;
       save();
       return merged;
@@ -286,6 +350,46 @@
   function paymentsOf(subId) {
     return db.payments.filter(function (p) { return p.subId === subId; })
       .sort(function (a, b) { return b.date.localeCompare(a.date); });
+  }
+
+  /**
+   * 全部付款记录（时间轴用），按时间倒序，附带订阅信息。
+   * @param {Object} filter { year, subId, q }
+   */
+  function allPayments(filter) {
+    filter = filter || {};
+    var subMap = {};
+    db.subs.forEach(function (s) { subMap[s.id] = s; });
+    var arr = db.payments.filter(function (p) {
+      if (filter.subId && p.subId !== filter.subId) return false;
+      if (filter.year && String(p.date || '').slice(0, 4) !== String(filter.year)) return false;
+      if (filter.q) {
+        var s = subMap[p.subId];
+        var hay = ((s && s.name) || '') + ' ' + (p.date || '') + ' ' + (p.currency || '');
+        if (hay.toLowerCase().indexOf(String(filter.q).toLowerCase()) < 0) return false;
+      }
+      return true;
+    });
+    return arr.map(function (p) {
+      return { pay: p, sub: subMap[p.subId] || null };
+    }).sort(function (a, b) {
+      return String(b.pay.date || '').localeCompare(String(a.pay.date || ''));
+    });
+  }
+
+  /** 按年汇总实际支出（折算到基准币种） */
+  function paymentsByYear(settings) {
+    settings = settings || db.settings;
+    var map = {};
+    db.payments.forEach(function (p) {
+      var y = String(p.date || '').slice(0, 4);
+      if (!/^\d{4}$/.test(y)) return;
+      if (!map[y]) map[y] = { year: y, total: 0, count: 0 };
+      map[y].total += U.convert(U.toNum(p.amount), p.currency || settings.currency, settings.currency, settings.rates);
+      map[y].count++;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; })
+      .sort(function (a, b) { return b.year.localeCompare(a.year); });
   }
 
   /* ---------------- 汇总 ---------------- */
@@ -432,6 +536,166 @@
     save();
   }
 
+  /* ---------------- CSV 导入 / 导出 ----------------
+     列名容错：中英文表头都认，找不到必需列时抛出带说明的错误。 */
+
+  var CSV_COLUMNS = {
+    name: ['名称', '订阅名称', '服务', 'name', 'service', 'platform'],
+    price: ['金额', '价格', '扣费金额', 'price', 'amount', 'cost'],
+    currency: ['币种', '货币', 'currency', 'cur'],
+    cycle: ['周期', '付费周期', '计费周期', 'cycle', 'period', 'frequency'],
+    category: ['分类', '类别', 'category', 'type'],
+    nextDue: ['下次扣费', '到期日', '扣费日期', '下次扣费日', 'nextdue', 'next_due', 'duedate', 'renewal'],
+    startDate: ['开始日期', '订阅开始', 'startdate', 'start_date', 'start'],
+    payMethod: ['支付方式', '付款方式', 'paymethod', 'pay_method', 'payment'],
+    note: ['备注', '说明', 'note', 'notes', 'memo'],
+    status: ['状态', 'status']
+  };
+
+  var CYCLE_ALIAS = {
+    '每周': 'weekly', '周': 'weekly', 'weekly': 'weekly', 'week': 'weekly',
+    '每月': 'monthly', '月': 'monthly', 'monthly': 'monthly', 'month': 'monthly',
+    '每季': 'quarterly', '季': 'quarterly', '季度': 'quarterly', 'quarterly': 'quarterly',
+    '每年': 'yearly', '年': 'yearly', 'yearly': 'yearly', 'year': 'yearly', 'annual': 'yearly', 'annually': 'yearly'
+  };
+
+  var CURRENCY_ALIAS = {
+    '元': 'CNY', '人民币': 'CNY', 'rmb': 'CNY', 'cny': 'CNY',
+    '美元': 'USD', 'usd': 'USD', '美金': 'USD',
+    '欧元': 'EUR', 'eur': 'EUR',
+    '英镑': 'GBP', 'gbp': 'GBP',
+    '日元': 'JPY', 'jpy': 'JPY', '円': 'JPY',
+    '港币': 'HKD', 'hkd': 'HKD', '港元': 'HKD',
+    '台币': 'TWD', 'twd': 'TWD', '新台币': 'TWD'
+  };
+
+  function normHeader(h) {
+    return String(h || '').trim().toLowerCase().replace(/[\s_\-()（）]/g, '');
+  }
+
+  /** 把表头行映射成 { 字段: 列下标 } */
+  function mapHeader(headerRow) {
+    var idx = {};
+    var normed = headerRow.map(normHeader);
+    Object.keys(CSV_COLUMNS).forEach(function (field) {
+      var aliases = CSV_COLUMNS[field].map(normHeader);
+      for (var i = 0; i < normed.length; i++) {
+        if (aliases.indexOf(normed[i]) >= 0) { idx[field] = i; break; }
+      }
+    });
+    return idx;
+  }
+
+  /**
+   * 导入 CSV 文本
+   * @returns {{added:number, skipped:number, errors:string[], rows:number}}
+   */
+  function importCSV(text) {
+    var rows = U.parseCSV(text);
+    if (!rows.length) throw new Error('文件是空的，或不是有效的 CSV');
+
+    var idx = mapHeader(rows[0]);
+    if (idx.name == null) {
+      throw new Error('缺少「名称」列。表头支持：' + CSV_COLUMNS.name.join(' / '));
+    }
+    if (idx.price == null) {
+      throw new Error('缺少「金额」列。表头支持：' + CSV_COLUMNS.price.join(' / '));
+    }
+
+    var added = 0, skipped = 0, errors = [];
+    var body = rows.slice(1);
+
+    body.forEach(function (r, i) {
+      var lineNo = i + 2; // 表头算第 1 行
+      var name = String(r[idx.name] || '').trim();
+      if (!name) { skipped++; return; }
+
+      var rawCell = String(r[idx.price] == null ? '' : r[idx.price]).trim();
+      var rawPrice = rawCell.replace(/[^\d.\-]/g, '');
+      // 空串在 toNum 里会变成 0，被当成「合法 0 元」——必须先判定原始单元格是否真的含数字
+      if (!rawCell || !/\d/.test(rawPrice)) {
+        errors.push('第 ' + lineNo + ' 行：金额「' + rawCell + '」无法识别');
+        skipped++;
+        return;
+      }
+      var price = U.toNum(rawPrice);
+      if (!isFinite(price) || price < 0) {
+        errors.push('第 ' + lineNo + ' 行：金额「' + rawCell + '」无法识别');
+        skipped++;
+        return;
+      }
+
+      var curRaw = idx.currency != null ? String(r[idx.currency] || '').trim() : '';
+      var currency = CURRENCY_ALIAS[curRaw.toLowerCase()] || CURRENCY_ALIAS[curRaw] ||
+        (P.CURRENCY_MAP[curRaw.toUpperCase()] ? curRaw.toUpperCase() : 'CNY');
+
+      var cycRaw = idx.cycle != null ? String(r[idx.cycle] || '').trim() : '';
+      var cycle = CYCLE_ALIAS[cycRaw.toLowerCase()] || CYCLE_ALIAS[cycRaw] || 'monthly';
+
+      var catRaw = idx.category != null ? String(r[idx.category] || '').trim() : '';
+      var category = 'other';
+      if (catRaw) {
+        var hit = P.CATEGORIES.find(function (c) { return c.name === catRaw || c.id === catRaw.toLowerCase(); });
+        if (hit) category = hit.id;
+      }
+
+      var dueRaw = idx.nextDue != null ? String(r[idx.nextDue] || '').trim() : '';
+      var startRaw = idx.startDate != null ? String(r[idx.startDate] || '').trim() : '';
+      var nextDue = U.parseDate(dueRaw);
+      var startDate = U.parseDate(startRaw) || (nextDue ? U.addMonths(nextDue, -1) : U.today());
+      if (!nextDue) nextDue = U.addMonths(startDate, 1);
+
+      var stRaw = idx.status != null ? String(r[idx.status] || '').trim() : '';
+      var status = 'active';
+      if (/暂停|paused?/i.test(stRaw)) status = 'paused';
+      else if (/取消|cancel/i.test(stRaw)) status = 'cancelled';
+
+      try {
+        db.subs.push(normalizeSub({
+          name: name,
+          price: price,
+          currency: currency,
+          cycle: cycle,
+          category: category,
+          startDate: U.fmtDate(startDate),
+          nextDue: U.fmtDate(nextDue),
+          payMethod: idx.payMethod != null ? String(r[idx.payMethod] || '').trim() : '',
+          note: idx.note != null ? String(r[idx.note] || '').trim() : '',
+          status: status,
+          autoRenew: true
+        }));
+        added++;
+      } catch (e) {
+        errors.push('第 ' + lineNo + ' 行：' + e.message);
+        skipped++;
+      }
+    });
+
+    if (added > 0) save();
+    return { added: added, skipped: skipped, errors: errors, rows: body.length };
+  }
+
+  /** 导出 CSV（可与导入互通，便于往返） */
+  function exportCSV() {
+    var head = ['名称', '金额', '币种', '周期', '分类', '开始日期', '下次扣费', '支付方式', '状态', '备注'];
+    var rows = [head];
+    db.subs.forEach(function (s) {
+      rows.push([
+        s.name,
+        s.price,
+        s.currency,
+        P.cycle(s.cycle).name,
+        P.cat(s.category).name,
+        s.startDate,
+        s.nextDue,
+        s.payMethod || '',
+        s.status === 'active' ? '使用中' : (s.status === 'paused' ? '已暂停' : '已取消'),
+        s.note || ''
+      ]);
+    });
+    return U.toCSV(rows);
+  }
+
   /** 载入示例数据（首次使用引导） */
   function seedDemo() {
     var t = U.today();
@@ -502,6 +766,12 @@
     importJSON: importJSON,
     reset: reset,
     seedDemo: seedDemo,
+    allPayments: allPayments,
+    paymentsByYear: paymentsByYear,
+    priceChange: priceChange,
+    importCSV: importCSV,
+    exportCSV: exportCSV,
+    CSV_COLUMNS: CSV_COLUMNS,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS
   };
 })(window);

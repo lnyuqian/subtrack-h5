@@ -255,6 +255,56 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
   }
 
+  /* ---------------- CSV（RFC 4180 子集） ----------------
+     自己写而非引库：需求只有「读表头 + 取列」，引一个 20KB 的库不划算（D2）。
+     支持：双引号包裹、引号内逗号/换行、"" 转义、CRLF/LF、BOM。 */
+  function parseCSV(text) {
+    var s = String(text || '').replace(/^\uFEFF/, ''); // 去 BOM
+    var rows = [];
+    var row = [];
+    var field = '';
+    var inQuotes = false;
+    var i = 0;
+
+    while (i < s.length) {
+      var c = s[i];
+
+      if (inQuotes) {
+        if (c === '"') {
+          if (s[i + 1] === '"') { field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+
+      if (c === '"') { inQuotes = true; i++; continue; }
+      if (c === ',') { row.push(field); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+
+      field += c; i++;
+    }
+    // 收尾（末行可能没有换行）
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+
+    // 丢掉完全空白的行
+    rows = rows.filter(function (r) {
+      return r.some(function (c) { return String(c).trim() !== ''; });
+    });
+    return rows;
+  }
+
+  /** 转义一个 CSV 字段（导出用） */
+  function csvCell(v) {
+    var s = String(v == null ? '' : v);
+    if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  function toCSV(rows) {
+    return rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n') + '\r\n';
+  }
+
   global.U = {
     DAY: DAY,
     startOfDay: startOfDay,
@@ -282,6 +332,9 @@
     uid: uid,
     debounce: debounce,
     clamp: clamp,
-    download: download
+    download: download,
+    parseCSV: parseCSV,
+    csvCell: csvCell,
+    toCSV: toCSV
   };
 })(window);
