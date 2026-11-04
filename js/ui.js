@@ -1161,6 +1161,9 @@
       class: 'input', type: 'color', name: 'color', value: U.iconColor(d.name || 'sub', d.color),
       style: 'padding:3px;height:38px;cursor:pointer'
     });
+    // 用户是否手动改过颜色：改过就不再被名称联动覆盖
+    var colorTouched = false;
+    colorInput.addEventListener('input', function () { colorTouched = true; });
     colorField.appendChild(colorInput);
     grid.appendChild(colorField);
 
@@ -1259,6 +1262,19 @@
     }
 
     /* -- 联动 -- */
+    /**
+     * 名称变了就顺手把颜色带对：
+     * 名字命中预设平台 → 用它的品牌色（Netflix 就该是红的）；
+     * 否则 → 按名称哈希取通用色。
+     * 用户自己点过颜色选择器（colorTouched）后就不再覆盖。
+     */
+    function syncColorFromName() {
+      if (colorTouched) return;
+      var nm = String(nameInput.value || '').trim();
+      var preset = P.PRESETS.find(function (p) { return p.name === nm; });
+      colorInput.value = preset ? preset.color : U.iconColor(nm || 'sub', '');
+    }
+
     function previewAvatar() {
       var nm = nameInput.value || '?';
       pvAvatar.style.background = U.iconColor(nm, colorInput.value);
@@ -1266,6 +1282,7 @@
     }
 
     function updatePreview() {
+      syncColorFromName();
       previewAvatar();
       var price = U.toNum(priceInput.value);
       var cyc = cycleSel.value;
