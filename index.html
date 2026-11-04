@@ -208,9 +208,17 @@
 <script src="js/app.js"></script>
 <script>
 /* PWA：Service Worker 只在 http(s) 下注册；file:// 双击打开时静默跳过，
-   其余功能不受影响（这是「A 方案：双击可用 + 服务下自动升级为 PWA」的降级路径） */
+   其余功能不受影响（这是「A 方案：双击可用 + 服务下自动升级为 PWA」的降级路径）
+
+   另：打包成 App（Capacitor）时也跳过 —— 原生壳从本地 assets 读取页面，
+   本来就不走网络，再挂一层 SW 缓存只会让「更新 APK 后页面没变」，
+   属于纯粹的负收益。用 window.Capacitor 判断是否在原生壳里。 */
 (function () {
   if (!('serviceWorker' in navigator)) return;
+  if (window.Capacitor) {
+    window.__SW_SKIPPED__ = 'capacitor-native';
+    return;
+  }
   if (location.protocol !== 'http:' && location.protocol !== 'https:') {
     window.__SW_SKIPPED__ = 'insecure-context';
     return;
